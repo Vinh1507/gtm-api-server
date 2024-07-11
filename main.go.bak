@@ -1,0 +1,138 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"log"
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"go.etcd.io/etcd/clientv3"
+)
+
+var (
+	etcdClient *clientv3.Client
+)
+
+type User struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+}
+
+func main() {
+	// Khởi tạo kết nối đến etcd
+	var err error
+	etcdClient, err = clientv3.New(clientv3.Config{
+		Endpoints: []string{"http://192.168.144.129:2379"}, // Đổi thành địa chỉ etcd của bạn
+	})
+	if err != nil {
+		log.Fatalf("Could not connect to etcd: %v\n", err)
+	}
+	defer etcdClient.Close()
+
+	log.Println("Connected to etcd!")
+
+	// Khởi tạo router Gin
+	r := gin.Default()
+
+	// Định nghĩa các route và handler
+	r.GET("/users", getUsers)
+	r.POST("/users", addUser)
+	r.PUT("/users/:id", updateUser)
+	r.DELETE("/users/:id", deleteUser)
+
+	// Khởi động server
+	log.Println("Server is running on port 8081...")
+	if err := r.Run(":8081"); err != nil {
+		log.Fatalf("Failed to run server: %v", err)
+	}
+}
+
+func getUsers(c *gin.Context) {
+	// Lấy danh sách người dùng từ etcd
+	resp, err := etcdClient.Get(context.Background(), "users", clientv3.WithPrefix())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var users []User
+	for _, kv := range resp.Kvs {
+		var user User
+		if err := json.Unmarshal(kv.Value, &user); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		users = append(users, user)
+	}
+
+	// Trả về danh sách người dùng dưới dạng JSON
+	c.JSON(http.StatusOK, users)
+}
+
+func addUser(c *gin.Context) {
+	// Đọc dữ liệu từ request body
+	var user User
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Lưu người dùng vào etcd
+	userJSON, err := json.Marshal(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	_, err = etcdClient.Put(context.Background(), "users/"+strconv.Itoa(user.ID), string(userJSON))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusCreated)
+}
+
+func updateUser(c *gin.Context) {
+	// Lấy ID từ path parameter
+	id := c.Param("id")
+
+	// Đọc dữ liệu từ request body
+	var user User
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Cập nhật thông tin người dùng trong etcd
+	userJSON, err := json.Marshal(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	_, err = etcdClient.Put(context.Background(), "users/"+id, string(userJSON))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusOK)
+}
+
+func deleteUser(c *gin.Context) {
+	// Lấy ID từ path parameter
+	id := c.Param("id")
+
+	// Xóa người dùng từ etcd
+	_, err := etcdClient.Delete(context.Background(), "users/"+id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusOK)
+}

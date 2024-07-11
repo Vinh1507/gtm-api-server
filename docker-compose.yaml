@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  go-postgres:
+    image: postgres:latest
+    container_name: go-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: gobank
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data 
+    ports:
+      - "5435:5432"
+
+  go-api:
+    build: .
+    container_name: go-api
+    ports:
+      - "8001:8001"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: gobank
+      POSTGRES_HOST: go-postgres
+      POSTGRES_PORT: 5432
