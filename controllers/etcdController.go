@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"fmt"
-	"go-api-server/etcd"
+	gtm_etcd "go-api-server/etcd"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -22,9 +22,9 @@ func EtcdPut(c *gin.Context) {
 		return
 	}
 
-	etcd.PutEntry(body.Key, body.Value)
+	gtm_etcd.PutEntry(body.Key, body.Value)
 
-	resp, err := etcd.GetEntryByKey(body.Key)
+	resp, err := gtm_etcd.GetEntryByKey(body.Key)
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -47,19 +47,10 @@ func EtcdPut(c *gin.Context) {
 }
 
 func EtcdGetByPrefix(c *gin.Context) {
+	prefix := c.Query("Prefix")
+	fmt.Println(prefix)
 
-	var body struct {
-		Prefix string
-	}
-
-	if c.Bind(&body) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to read body",
-		})
-		return
-	}
-
-	resp, err := etcd.GetEntryByPrefix(body.Prefix)
+	resp, err := gtm_etcd.GetEntryByPrefix(prefix)
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{

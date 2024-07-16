@@ -1,4 +1,4 @@
-package etcd
+package gtm_etcd
 
 import (
 	"context"

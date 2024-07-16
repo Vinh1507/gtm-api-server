@@ -26,6 +26,8 @@ func main() {
 	r.POST("/etcd-put", controllers.EtcdPut)
 	r.GET("/etcd-get-prefix", controllers.EtcdGetByPrefix)
 
+	r.POST("/api/v1/gtm/config-gtm", controllers.ConfigGtm)
+
 	port := os.Getenv("PORT")
 	r.Run(port)
 }
