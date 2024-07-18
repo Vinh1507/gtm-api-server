@@ -42,6 +42,9 @@ func main() {
 	r.POST("/api/v1/gtm/config-gtm", controllers.ConfigGtm)
 	r.GET("/api/v1/gtm/history", controllers.GetDataCenterHistory)
 
+	r.GET("/api/v1/gtm/resolvers/:id", controllers.GetResolverDetail)
+	r.GET("/api/v1/gtm/resolvers", controllers.GetResolverList)
+
 	r.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Route not found"})
 	})

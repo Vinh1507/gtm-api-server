@@ -47,6 +47,7 @@ func ConfigGtm(c *gin.Context) {
 		DomainName:  body.DomainName,
 		Policy:      body.Policy,
 		DataCenters: dataCenterKeys,
+		TTL:         body.TTL,
 	}
 
 	jsonData, err := json.Marshal(domain)
@@ -86,12 +87,49 @@ func GetGtmConfig(c *gin.Context) {
 	})
 }
 
+func getDataCenterHistoryByDomain(domain string) ([]models.DataCenterHistory, error) {
+	key := fmt.Sprintf("resource/datacenterhistory/%s", domain)
+
+	resp, err := gtm_etcd.GetEntryByKey(key)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var history []models.DataCenterHistory
+
+	if len(resp.Kvs) > 0 {
+		err = json.Unmarshal([]byte(resp.Kvs[len(resp.Kvs)-1].Value), &history)
+		if err != nil {
+			fmt.Println("Error Unmarshal Data Center History JSON:", err)
+		}
+	}
+
+	sort.Slice(history, func(i, j int) bool {
+		return history[i].TimeStamp > history[j].TimeStamp
+	})
+
+	return history, nil
+}
+
 func GetDataCenterHistory(c *gin.Context) {
 	domain := c.Query("domain")
+	history, err := getDataCenterHistoryByDomain(domain)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Failed to get history",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"history": history,
+	})
+}
 
-	prefix := fmt.Sprintf("resource/datacenterhistory/%s_", domain)
+func GetResolverList(c *gin.Context) {
 
-	fmt.Println(prefix)
+	prefix := fmt.Sprintf("resource/domain/")
+
 	resp, err := gtm_etcd.GetEntryByPrefix(prefix)
 
 	if err != nil {
@@ -101,22 +139,59 @@ func GetDataCenterHistory(c *gin.Context) {
 		return
 	}
 
-	var history []models.DataCenterHistory
+	var resolvers []models.Domain
 	for _, ev := range resp.Kvs {
-		value := ev.Value
-		var records []models.DataCenterHistory
-		err = json.Unmarshal([]byte(value), &records)
+		var resolver models.Domain
+		err = json.Unmarshal([]byte(ev.Value), &resolver)
 		if err != nil {
-			fmt.Println("Error marshalling Data Center History to JSON:", err)
+			fmt.Println("Error unmarshalling resolver JSON:", err)
 		}
-		history = append(history, records...)
+		resolvers = append(resolvers, resolver)
 	}
 
-	sort.Slice(history, func(i, j int) bool {
-		return history[i].TimeStamp > history[j].TimeStamp
+	c.JSON(http.StatusOK, gin.H{
+		"resolvers": resolvers,
 	})
+}
+
+func GetResolverDetail(c *gin.Context) {
+	id := c.Param("id")
+	prefix := fmt.Sprintf("resource/domain/")
+
+	resp, err := gtm_etcd.GetEntryByPrefix(prefix)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Failed to get entries",
+		})
+		return
+	}
+
+	for _, ev := range resp.Kvs {
+		var resolver models.Domain
+		err = json.Unmarshal([]byte(ev.Value), &resolver)
+		if err != nil {
+			fmt.Println("Error unmarshalling resolver JSON:", err)
+		}
+
+		if resolver.Id == id {
+			history, err := getDataCenterHistoryByDomain(resolver.DomainName)
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"resolver":          resolver,
+					"dataCenterHistory": nil,
+				})
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"resolver":          resolver,
+				"dataCenterHistory": history,
+			})
+			return
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"history": history,
+		"resolver":          nil,
+		"dataCenterHistory": nil,
 	})
 }

@@ -45,6 +45,7 @@ type DataCenterHistory struct {
 	DataCenterName string `json:"dataCenterName"`
 	HealthCheckUrl string `json:"healthCheckUrl"`
 	Domain         string `json:"domain"`
+	ResponseCode   int    `json:"responseCode"`
 	Status         string `json:"status"`
 	Reason         string `json:"reason"`
 	TimeStamp      string `json:"timestamp"`
