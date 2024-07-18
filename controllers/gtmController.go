@@ -6,6 +6,7 @@ import (
 	gtm_etcd "go-api-server/etcd"
 	"go-api-server/models"
 	"net/http"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -17,7 +18,8 @@ func ConfigGtm(c *gin.Context) {
 		Id          string
 		DomainName  string
 		DataCenters []models.DataCenter
-		Type        string
+		Policy      string
+		TTL         int
 	}
 
 	if c.Bind(&body) != nil {
@@ -29,7 +31,8 @@ func ConfigGtm(c *gin.Context) {
 
 	dataCenterKeys := make([]string, 0)
 	for _, dataCenter := range body.DataCenters {
-		dataCenterKey := fmt.Sprintf("resource/datacenter/%s", dataCenter.Name)
+		dataCenterKey := fmt.Sprintf("resource/datacenter/%s_%s", body.DomainName, dataCenter.Name)
+		dataCenter.Domain = body.DomainName
 		dataCenterJsonData, err := json.Marshal(dataCenter)
 		dataCenterKeys = append(dataCenterKeys, dataCenterKey)
 		if err != nil {
@@ -42,7 +45,7 @@ func ConfigGtm(c *gin.Context) {
 	domain := models.Domain{
 		Id:          uuid.New().String(),
 		DomainName:  body.DomainName,
-		Type:        body.Type,
+		Policy:      body.Policy,
 		DataCenters: dataCenterKeys,
 	}
 
@@ -56,7 +59,7 @@ func ConfigGtm(c *gin.Context) {
 	gtm_etcd.PutEntry(gtmKey, string(jsonData))
 
 	c.JSON(http.StatusOK, gin.H{
-		"body": body,
+		"domain": domain,
 	})
 }
 
@@ -80,5 +83,40 @@ func GetGtmConfig(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"body": body,
+	})
+}
+
+func GetDataCenterHistory(c *gin.Context) {
+	domain := c.Query("domain")
+
+	prefix := fmt.Sprintf("resource/datacenterhistory/%s_", domain)
+
+	fmt.Println(prefix)
+	resp, err := gtm_etcd.GetEntryByPrefix(prefix)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Failed to get entries",
+		})
+		return
+	}
+
+	var history []models.DataCenterHistory
+	for _, ev := range resp.Kvs {
+		value := ev.Value
+		var records []models.DataCenterHistory
+		err = json.Unmarshal([]byte(value), &records)
+		if err != nil {
+			fmt.Println("Error marshalling Data Center History to JSON:", err)
+		}
+		history = append(history, records...)
+	}
+
+	sort.Slice(history, func(i, j int) bool {
+		return history[i].TimeStamp > history[j].TimeStamp
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"history": history,
 	})
 }

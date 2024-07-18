@@ -40,6 +40,7 @@ func main() {
 	r.GET("/etcd-get-prefix", controllers.EtcdGetByPrefix)
 
 	r.POST("/api/v1/gtm/config-gtm", controllers.ConfigGtm)
+	r.GET("/api/v1/gtm/history", controllers.GetDataCenterHistory)
 
 	r.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Route not found"})

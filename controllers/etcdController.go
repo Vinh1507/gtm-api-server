@@ -47,7 +47,7 @@ func EtcdPut(c *gin.Context) {
 }
 
 func EtcdGetByPrefix(c *gin.Context) {
-	prefix := c.Query("Prefix")
+	prefix := c.Query("prefix")
 	fmt.Println(prefix)
 
 	resp, err := gtm_etcd.GetEntryByPrefix(prefix)
